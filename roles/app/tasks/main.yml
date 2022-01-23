@@ -1,0 +1,119 @@
+---
+- name: Create data directories for containers
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "/var/container/{{ container_name }}"
+    - "/var/container/{{ container_name }}/data"
+    - "/var/container/{{ container_name }}/data/nginx"
+    - "/var/container/{{ container_name }}/data/nginx/conf.d"
+    - "/var/container/{{ container_name }}/data/nginx/sites"
+    - "/var/container/{{ container_name }}/data/php-fpm"
+    - "/var/container/{{ container_name }}/data/certbot"
+    - "/var/container/{{ container_name }}/data/certbot/conf"
+    - "/var/container/{{ container_name }}/data/certbot/conf/live"
+    - "/var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}"
+    - "/var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}"
+    - "/var/container/{{ container_name }}/data/mysql"
+    - "/var/container/{{ container_name }}/data/services"
+
+- name: Create env file for docker containers
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "/var/container/{{ container_name }}/.env"
+
+- name: Clone backend api from github
+  ansible.builtin.git:
+    repo: https://github.com/Corona-Appointment-Booking-App/backend-api.git
+    dest: "/var/container/{{ container_name }}/data/services/backend-api"
+    update: yes
+
+- name: Clone frontend app from github
+  ansible.builtin.git:
+    repo: https://github.com/Corona-Appointment-Booking-App/frontend-app.git
+    dest: "/var/container/{{ container_name }}/data/services/frontend-app"
+    update: yes
+
+- name: Clone admin app from github
+  ansible.builtin.git:
+    repo: https://github.com/Corona-Appointment-Booking-App/admin-app.git
+    dest: "/var/container/{{ container_name }}/data/services/admin-app"
+    update: yes
+
+- name: Create nginx default.conf
+  ansible.builtin.template:
+    src: nginx/conf.d/default.conf.j2
+    dest: "/var/container/{{ container_name }}/data/nginx/conf.d/default.conf"
+
+- name: Create nginx nginx.conf
+  ansible.builtin.template:
+    src: nginx/nginx.conf.j2
+    dest: "/var/container/{{ container_name }}/data/nginx/nginx.conf"
+
+- name: Create nginx backend api vhost
+  ansible.builtin.template:
+    src: nginx/sites/backend-api.conf.j2
+    dest: "/var/container/{{ container_name }}/data/nginx/sites/{{ host_backend_api }}.conf"
+
+- name: Create nginx frontend app vhost
+  ansible.builtin.template:
+    src: nginx/sites/frontend-app.conf.j2
+    dest: "/var/container/{{ container_name }}/data/nginx/sites/{{ host_frontend_app }}.conf"
+
+- name: Create certbot options-ssl-nginx.conf
+  ansible.builtin.template:
+    src: certbot/conf/options-ssl-nginx.conf.j2
+    dest: "/var/container/{{ container_name }}/data/certbot/conf/options-ssl-nginx.conf"
+
+- name: Create certbot ssl-dhparams.pem
+  ansible.builtin.template:
+    src: certbot/conf/ssl-dhparams.pem.j2
+    dest: "/var/container/{{ container_name }}/data/certbot/conf/ssl-dhparams.pem"
+
+- name: Create php-fpm docker file
+  ansible.builtin.template:
+    src: php-fpm/Dockerfile.j2
+    dest: "/var/container/{{ container_name }}/data/php-fpm/Dockerfile"
+
+- name: Create php-fpm php ini default overrides
+  ansible.builtin.template:
+    src: php-fpm/default-overrides.ini.j2
+    dest: "/var/container/{{ container_name }}/data/php-fpm/default-overrides.ini"
+
+- name: Generate an OpenSSL private key for frontend app so nginx can start
+  community.crypto.openssl_privatekey:
+    path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/privkey.pem
+    size: 4096
+
+- name: Generate an OpenSSL private key for backend api so nginx can start
+  community.crypto.openssl_privatekey:
+    path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/privkey.pem
+    size: 4096
+
+- name: Create default ssl certificates for frontend app so nginx can start
+  community.crypto.x509_certificate:
+    path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/fullchain.pem
+    privatekey_path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/privkey.pem
+    provider: selfsigned
+
+- name: Create default ssl certificates for backend api so nginx can start
+  community.crypto.x509_certificate:
+    path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/fullchain.pem
+    privatekey_path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/privkey.pem
+    provider: selfsigned
+
+- name: Remove docker-compose file so containers will be restarted
+  ansible.builtin.file:
+    path: "/var/container/{{ container_name }}/docker-compose.yml"
+    state: absent
+
+- name: Create docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "/var/container/{{ container_name }}/docker-compose.yml"
+  notify:
+    - restart all containers
+
+

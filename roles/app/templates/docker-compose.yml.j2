@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  {{ container_name }}_nginx:
+    image: nginx:alpine
+    container_name: {{ container_name }}_nginx
+    env_file:
+      - .env
+    volumes:
+      - /var/container/{{ container_name }}/data/services/backend-api:/var/www/backend-api
+      - /var/container/{{ container_name }}/data/services/frontend-app:/var/www/frontend-app
+      - /var/container/{{ container_name }}/data/services/admin-app:/var/www/admin-app
+      - /var/container/{{ container_name }}/data/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /var/container/{{ container_name }}/data/nginx/sites:/etc/nginx/sites-available
+      - /var/container/{{ container_name }}/data/nginx/conf.d:/etc/nginx/conf.d
+      - /var/container/{{ container_name }}/data/certbot/conf:/etc/letsencrypt
+      - /var/container/{{ container_name }}/data/certbot/www:/var/www/certbot
+    depends_on:
+      - {{ container_name }}_php-fpm
+    restart: always
+    ports:
+      - "${PORT_NGINX_HTTP}:80"
+      - "${PORT_NGINX_HTTPS}:443"
+    networks:
+      - {{ container_name }}_frontend
+      - {{ container_name }}_backend
+
+  {{ container_name }}_mysql:
+    image: mariadb:10.5.10
+    container_name: {{ container_name }}_mysql
+    env_file:
+      - .env
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - /var/container/{{ container_name }}/data/mysql:/var/lib/mysql
+    restart: always
+    networks:
+      - {{ container_name }}_backend
+
+  {{ container_name }}_php-fpm:
+    build:
+      context: ./data/php-fpm
+      dockerfile: Dockerfile
+      args:
+        - PHP_VERSION=8.0
+    container_name: {{ container_name }}_php-fpm
+    env_file:
+      - .env
+    volumes:
+      - /var/container/{{ container_name }}/data/services/backend-api:/var/www/backend-api
+      - /var/container/{{ container_name }}/data/services/frontend-app:/var/www/frontend-app
+      - /var/container/{{ container_name }}/data/services/admin-app:/var/www/admin-app
+    restart: always
+    networks:
+      - {{ container_name }}_backend
+
+  {{ container_name }}_certbot:
+    image: certbot/certbot
+    container_name: {{ container_name }}_certbot
+    env_file:
+      - .env
+    volumes:
+      - /var/container/{{ container_name }}/data/certbot/conf:/etc/letsencrypt
+      - /var/container/{{ container_name }}/data/certbot/www:/var/www/certbot
+    networks:
+      - {{ container_name }}_frontend
+
+networks:
+  {{ container_name }}_frontend:
+  {{ container_name }}_backend:

@@ -1,0 +1,71 @@
+- name: Update and upgrade all packages
+  ansible.builtin.apt:
+    update_cache: yes
+    force_apt_get: yes
+    cache_valid_time: 3600
+    upgrade: dist
+
+- name: Install required base packages
+  ansible.builtin.apt:
+    pkg:
+      - curl
+      - git
+      - gnupg2
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+
+- name: Add docker apt signing key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+    state: present
+
+- name: Get OS release name
+  command: "lsb_release -cs"
+  changed_when: false
+  register: lsb_release_name
+
+- name: Get OS distro
+  command: "uname -s"
+  changed_when: false
+  register: os_distro
+
+- name: Get OS architecture
+  command: "uname -m"
+  changed_when: false
+  register: os_architecture
+
+- name: Add docker repository
+  ansible.builtin.apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/debian {{ lsb_release_name.stdout }} stable
+    state: present
+
+- name: Update all packages
+  apt:
+    name: "*"
+    state: latest
+
+- name: Install docker
+  ansible.builtin.apt:
+    name: docker-ce
+
+- name: Start and enable docker on boot
+  ansible.builtin.systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: Download docker-compose
+  ansible.builtin.get_url:
+    url: https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-{{ os_distro.stdout }}-{{ os_architecture.stdout }}
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+
+- name: Install python3
+  command: apt install python3 python3-pip -y
+
+- name: Install python docker
+  command: apt-get install python3-docker -y
+
+- name: Install python docker-compose
+  command: pip3 install docker-compose

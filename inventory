@@ -1,0 +1,5 @@
+[server]
+serverIp ansible_user=root
+
+[server:vars]
+ansible_python_interpreter=/usr/bin/python3
