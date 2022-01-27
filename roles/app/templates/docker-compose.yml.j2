@@ -19,8 +19,8 @@ services:
       - {{ container_name }}_php-fpm
     restart: always
     ports:
-      - "${PORT_NGINX_HTTP}:80"
-      - "${PORT_NGINX_HTTPS}:443"
+      - "${PORT_NGINX_HTTP}:80/tcp"
+      - "${PORT_NGINX_HTTPS}:443/tcp"
     networks:
       - {{ container_name }}_frontend
       - {{ container_name }}_backend
