@@ -116,4 +116,25 @@
   notify:
     - restart all containers
 
+- name: Remove old dummy certificates
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/var/container/{{ container_name }}/data/certbot/conf/live"
+    - "/var/container/{{ container_name }}/data/certbot/conf/archive"
+    - "/var/container/{{ container_name }}/data/certbot/conf/renewal"
+
+- name: Create letsencrypt certificates for frontend app
+  shell:
+    cmd: docker-compose run --rm --entrypoint "certbot certonly --webroot -w /var/www/certbot -d {{ host_frontend_app }} --email {{ letsencrypt_email }} --rsa-key-size 4096 --agree-tos --non-interactive --force-renewal" {{ container_name }}_certbot
+    chdir: "/var/container/{{ container_name }}"
+
+- name: Create letsencrypt certificates for backend api
+  shell:
+    cmd: docker-compose run --rm --entrypoint "certbot certonly --webroot -w /var/www/certbot -d {{ host_backend_api }} --email {{ letsencrypt_email }} --rsa-key-size 4096 --agree-tos --non-interactive --force-renewal" {{ container_name }}_certbot
+    chdir: "/var/container/{{ container_name }}"
+  notify:
+    - restart all containers
+
 

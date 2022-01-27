@@ -4,10 +4,11 @@
     container_name: corona-symfony-app
     host_backend_api: "api.yourdomain.com"
     host_frontend_app: "frontend.yourdomain.com"
+    letsencrypt_email: "info@yourdomain.com"
     env_mysql_database: "app"
     env_mysql_user: "app"
     env_mysql_password: "app"
     env_mysql_root_password: "app"
   roles:
-    - system
+    #- system
     - app
