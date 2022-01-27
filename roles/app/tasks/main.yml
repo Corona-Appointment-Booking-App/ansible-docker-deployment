@@ -82,27 +82,36 @@
     src: php-fpm/default-overrides.ini.j2
     dest: "/var/container/{{ container_name }}/data/php-fpm/default-overrides.ini"
 
+- name: Check if letsencrypt certificates already created
+  ansible.builtin.stat:
+    path: "/var/container/{{ container_name }}/data/certbot/letsencrypt-exists.lock"
+  register: check_letsencrypt_certificates
+
 - name: Generate an OpenSSL private key for frontend app so nginx can start
   community.crypto.openssl_privatekey:
     path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/privkey.pem
     size: 4096
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Generate an OpenSSL private key for backend api so nginx can start
   community.crypto.openssl_privatekey:
     path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/privkey.pem
     size: 4096
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Create default ssl certificates for frontend app so nginx can start
   community.crypto.x509_certificate:
     path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/fullchain.pem
     privatekey_path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}/privkey.pem
     provider: selfsigned
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Create default ssl certificates for backend api so nginx can start
   community.crypto.x509_certificate:
     path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/fullchain.pem
     privatekey_path: /var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}/privkey.pem
     provider: selfsigned
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Remove docker-compose file so containers will be restarted
   ansible.builtin.file:
@@ -124,11 +133,13 @@
     - "/var/container/{{ container_name }}/data/certbot/conf/live"
     - "/var/container/{{ container_name }}/data/certbot/conf/archive"
     - "/var/container/{{ container_name }}/data/certbot/conf/renewal"
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Create letsencrypt certificates for frontend app
   shell:
     cmd: docker-compose run --rm --entrypoint "certbot certonly --webroot -w /var/www/certbot -d {{ host_frontend_app }} --email {{ letsencrypt_email }} --rsa-key-size 4096 --agree-tos --non-interactive --force-renewal" {{ container_name }}_certbot
     chdir: "/var/container/{{ container_name }}"
+  when: not check_letsencrypt_certificates.stat.exists
 
 - name: Create letsencrypt certificates for backend api
   shell:
@@ -136,5 +147,13 @@
     chdir: "/var/container/{{ container_name }}"
   notify:
     - restart all containers
+  when: not check_letsencrypt_certificates.stat.exists
+
+- name: Create letsencrypt lock file so certificates will not recreated
+  ansible.builtin.file:
+    path: "/var/container/{{ container_name }}/data/certbot/letsencrypt-exists.lock"
+    state: touch
+  when: not check_letsencrypt_certificates.stat.exists
+
 
 
