@@ -22,8 +22,8 @@ services:
       - "${PORT_NGINX_HTTP}:80/tcp"
       - "${PORT_NGINX_HTTPS}:443/tcp"
     networks:
-      - {{ container_name }}_frontend
-      - {{ container_name }}_backend
+      - frontend
+      - backend
 
   {{ container_name }}_mysql:
     image: mariadb:10.5.10
@@ -36,10 +36,10 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     volumes:
-      - /var/container/{{ container_name }}/data/mysql:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
     restart: always
     networks:
-      - {{ container_name }}_backend
+      - backend
 
   {{ container_name }}_php-fpm:
     build:
@@ -56,7 +56,7 @@ services:
       - /var/container/{{ container_name }}/data/services/admin-app:/var/www/admin-app
     restart: always
     networks:
-      - {{ container_name }}_backend
+      - backend
 
   {{ container_name }}_certbot:
     image: certbot/certbot
@@ -67,8 +67,13 @@ services:
       - /var/container/{{ container_name }}/data/certbot/conf:/etc/letsencrypt
       - /var/container/{{ container_name }}/data/certbot/www:/var/www/certbot
     networks:
-      - {{ container_name }}_frontend
+      - frontend
+
+volumes:
+  mysql-data:
+    external: false
+    name: {{ container_name }}_mysql_data
 
 networks:
-  {{ container_name }}_frontend:
-  {{ container_name }}_backend:
+  frontend:
+  backend:

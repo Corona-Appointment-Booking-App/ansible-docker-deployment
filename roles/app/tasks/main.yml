@@ -16,8 +16,16 @@
     - "/var/container/{{ container_name }}/data/certbot/conf/live"
     - "/var/container/{{ container_name }}/data/certbot/conf/live/{{ host_backend_api }}"
     - "/var/container/{{ container_name }}/data/certbot/conf/live/{{ host_frontend_app }}"
-    - "/var/container/{{ container_name }}/data/mysql"
     - "/var/container/{{ container_name }}/data/services"
+
+- name: Remove old not needed directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/var/container/{{ container_name }}/data/services/backend-api"
+    - "/var/container/{{ container_name }}/data/services/frontend-app"
+    - "/var/container/{{ container_name }}/data/services/admin-app"
 
 - name: Create env file for docker containers
   ansible.builtin.template:
@@ -41,6 +49,21 @@
     repo: https://github.com/Corona-Appointment-Booking-App/admin-app.git
     dest: "/var/container/{{ container_name }}/data/services/admin-app"
     update: yes
+
+- name: Create env file for backend api
+  ansible.builtin.template:
+    src: .env.symfony.j2
+    dest: "/var/container/{{ container_name }}/data/services/backend-api/.env"
+
+- name: Create env file for frontend app
+  ansible.builtin.template:
+    src: .env.frontend-app.j2
+    dest: "/var/container/{{ container_name }}/data/services/frontend-app/.env"
+
+- name: Create env file for admin app
+  ansible.builtin.template:
+    src: .env.admin-app.j2
+    dest: "/var/container/{{ container_name }}/data/services/admin-app/.env"
 
 - name: Create nginx default.conf
   ansible.builtin.template:
@@ -155,5 +178,56 @@
     state: touch
   when: not check_letsencrypt_certificates.stat.exists
 
+- name: restart all containers
+  community.docker.docker_compose:
+    project_src: "/var/container/{{ container_name }}"
+    build: no
+    restarted: yes
 
+- name: Install composer packages
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "composer install --no-dev --optimize-autoloader"
+    chdir: "/var/www/backend-api"
 
+- name: Migrate migrations
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "bin/console doctrine:migrations:migrate --no-interaction"
+    chdir: "/var/www/backend-api"
+
+- name: JWT generate keypair
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "bin/console lexik:jwt:generate-keypair --overwrite --no-interaction"
+    chdir: "/var/www/backend-api"
+
+- name: JWT check config
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "bin/console lexik:jwt:check-config"
+    chdir: "/var/www/backend-api"
+
+- name: Build frontend assets
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "npm install && npm run build"
+    chdir: "/var/www/frontend-app"
+
+- name: Build admin assets
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "npm install && npm run build"
+    chdir: "/var/www/admin-app"
+
+- name: Move build admin folder to public
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "rm -rf /var/www/backend-api/public/admin && mv /var/www/admin-app/dist /var/www/backend-api/public/admin"
+
+- name: Check API Health Check
+  ansible.builtin.uri:
+    url: "https://{{ host_backend_api }}/api/health-check"
+    method: GET
+    headers:
+      Content-Type: "application/json"
