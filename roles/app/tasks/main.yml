@@ -178,6 +178,15 @@
     state: touch
   when: not check_letsencrypt_certificates.stat.exists
 
+- name: Add htpasswd file for frontend app
+  community.general.htpasswd:
+    path: "/var/container/{{ container_name }}/data/nginx/sites/.htpasswd"
+    name: "{{ frontend_htpasswd_username }}"
+    password: "{{ frontend_htpasswd_password }}"
+    owner: root
+    group: root
+    mode: 0666
+
 - name: restart all containers
   community.docker.docker_compose:
     project_src: "/var/container/{{ container_name }}"
