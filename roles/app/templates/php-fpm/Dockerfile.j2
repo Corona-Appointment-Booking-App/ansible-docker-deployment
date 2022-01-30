@@ -52,6 +52,8 @@ COPY --from=composer:2.2.2 /usr/bin/composer /usr/local/bin/composer
 RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - \
     && apt-get install -y nodejs
 
+RUN npm install -g yarn
+
 WORKDIR /var/www
 
 RUN usermod -g www-data root

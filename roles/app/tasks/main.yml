@@ -208,16 +208,28 @@
     command: /bin/bash -c "bin/console lexik:jwt:check-config"
     chdir: "/var/www/backend-api"
 
+- name: Install frontend assets
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "yarn install"
+    chdir: "/var/www/frontend-app"
+
 - name: Build frontend assets
   community.docker.docker_container_exec:
     container: "{{ container_name }}_php-fpm"
-    command: /bin/bash -c "npm install && npm run build"
+    command: /bin/bash -c "yarn run build"
     chdir: "/var/www/frontend-app"
+
+- name: Install admin assets
+  community.docker.docker_container_exec:
+    container: "{{ container_name }}_php-fpm"
+    command: /bin/bash -c "yarn install"
+    chdir: "/var/www/admin-app"
 
 - name: Build admin assets
   community.docker.docker_container_exec:
     container: "{{ container_name }}_php-fpm"
-    command: /bin/bash -c "npm install && npm run build"
+    command: /bin/bash -c "yarn run build"
     chdir: "/var/www/admin-app"
 
 - name: Move build admin folder to public
